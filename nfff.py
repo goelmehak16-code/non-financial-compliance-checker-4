@@ -6,7 +6,7 @@ st.set_page_config(page_title="Compliance Analyzer", layout="wide")
 st.title("📄 Advanced Labour + MRT Compliance Analyzer")
 
 # -----------------------------
-# SAFE PDF IMPORT (OPTIONAL)
+# SAFE PDF IMPORT
 # -----------------------------
 pdf_supported = True
 try:
@@ -28,6 +28,10 @@ def extract_text(file):
         text = ""
         for page in reader.pages:
             text += page.extract_text() or ""
+        
+        if text.strip() == "":
+            st.warning("⚠ This looks like a scanned PDF. Text extraction failed.\nPlease upload TXT version for accurate analysis.")
+        
         return text.lower()
     else:
         return file.read().decode("utf-8", errors="ignore").lower()
@@ -76,11 +80,11 @@ if uploaded:
 
     compliance_rules = {
         "Employee Identity": ["employee name", "emp id", "designation"],
-        "Wage Period": ["wage period", "salary period"],
-        "Earnings": ["earnings", "gross", "allowance", "salary"],
-        "Deductions": ["deduction", "pf", "tax", "esi"],
-        "Net Pay": ["net pay", "take home"],
-        "Payment Timing": ["payment date", "credited"]
+        "Wage Period": ["wage period", "month", "period"],
+        "Earnings": ["earnings", "gross", "allowance", "basic"],
+        "Deductions": ["deduction", "pf", "tax"],
+        "Net Pay": ["net pay", "net salary"],
+        "Payment Timing": ["payment date", "credited", "transfer"]
     }
 
     legal_reason = {
@@ -119,20 +123,20 @@ if uploaded:
     else:
         st.success("Document appears compliant")
 
-    st.info("This is a rule-based preliminary compliance check.")
+    st.info("Rule-based analysis. Does not replace legal audit.")
 
     # -----------------------------
     # WAGE RATIO
     # -----------------------------
     st.header("📊 Wage Ratio (Labour Code)")
 
-    basic = extract_amount(["basic salary", "basic"], text)
-    da = extract_amount(["dearness allowance", "da"], text)
+    basic = extract_amount(["basic"], text)
+    da = extract_amount(["da", "dearness"], text)
     hra = extract_amount(["hra"], text)
-    allowances = extract_amount(["allowance"], text)
-    bonus = extract_amount(["bonus", "variable pay"], text)
+    allowance = extract_amount(["allowance"], text)
+    bonus = extract_amount(["bonus"], text)
 
-    total_salary = basic + da + hra + allowances + bonus
+    total_salary = basic + da + hra + allowance + bonus
 
     if total_salary > 0:
         wage_ratio = ((basic + da) / total_salary) * 100
@@ -142,9 +146,6 @@ if uploaded:
             st.success("✔ Compliant with 50% wage rule")
         else:
             st.error("❌ Below 50% requirement")
-
-    else:
-        st.warning("⚠ Unable to compute wage ratio")
 
     # -----------------------------
     # MRT ANALYSIS
@@ -203,13 +204,13 @@ if uploaded:
             issues.append("Variable pay exceeds 300% cap")
 
         if var_ratio <= 200 and non_cash_ratio < 50:
-            issues.append("Non-cash below 50% requirement")
+            issues.append("Non-cash below 50%")
 
         if var_ratio > 200 and non_cash_ratio < 67:
-            issues.append("Non-cash below 67% requirement")
+            issues.append("Non-cash below 67%")
 
         if deferred_ratio < 60:
-            issues.append("Deferred below 60% requirement")
+            issues.append("Deferred below 60%")
 
         if issues:
             for i in issues:
